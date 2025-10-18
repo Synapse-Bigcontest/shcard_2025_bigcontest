@@ -1,122 +1,133 @@
+# streamlit_app.py (챗봇 UI 복구 버전)
+
 import streamlit as st
+import os
 import asyncio
-
-from mcp.client.stdio import stdio_client
-from mcp import ClientSession, StdioServerParameters
-from langchain_mcp_adapters.tools import load_mcp_tools
-from langgraph.prebuilt import create_react_agent
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-
-from PIL import Image
+from langchain_core.messages import SystemMessage, AIMessage, HumanMessage
 from pathlib import Path
 
-# 환경변수
-ASSETS = Path("assets")
-GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
+# ⭐️⭐️⭐️ 모듈 임포트 ⭐️⭐️⭐️
+try:
+    from orchestrator import AgentOrchestrator
+    from data_processor import DF_MERGED 
+except ImportError as e:
+    st.error(f"필수 모듈 로드 오류: {e}. 경로와 파일명을 확인하세요.")
+    AgentOrchestrator = None
+    DF_MERGED = None
 
-system_prompt = "당신은 친절한 마케팅 상담사입니다. 가맹점명을 받아 해당 가맹점의 방문 고객 현황을 분석하고, 분석 결과를 바탕으로 적절한 마케팅 방법과 채널, 마케팅 메시지를 추천합니다. 결과는 짧고 간결하게, 분석 결과에는 가능한 표를 사용하여 알아보기 쉽게 설명해주세요."
-greeting = "마케팅이 필요한 가맹점을 알려주세요  \n(조회가능 예시: 동대*, 유유*, 똥파*, 본죽*, 본*, 원조*, 희망*, 혁이*, H커*, 케키*)"
 
-# Streamlit App UI
-@st.cache_data 
-def load_image(name: str):
-    return Image.open(ASSETS / name)
+# --- 환경 변수 및 초기 설정 ---
+system_prompt = "당신은 친절한 마케팅 상담사입니다. 사용자로부터 받은 첫 메시지에서 **가맹점 ID(예: '002816BA73')**를 추출하여 **analyze_merchant_data** 툴을 호출하세요. ID 추출에 실패하면 사용자에게 ID를 다시 요청하세요. 최종 응답에는 분석 결과를 표로 요약하고 마케팅 전략을 제시합니다."
+greeting = "안녕하세요! 분석을 원하는 **가맹점 ID(예: 002816BA73)**를 입력해주세요. ID를 기반으로 상세 분석을 도와드리겠습니다."
 
-st.set_page_config(page_title="2025년 빅콘테스트 AI데이터 활용분야 - 맛집을 수호하는 AI비밀상담사")
 
+# --- Helper Functions ---
 def clear_chat_history():
     st.session_state.messages = [SystemMessage(content=system_prompt), AIMessage(content=greeting)]
 
-# 사이드바
-with st.sidebar:
-    st.image(load_image("shc_ci_basic_00.png"), width='stretch')
-    st.markdown("<p style='text-align: center;'>2025 Big Contest</p>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center;'>AI DATA 활용분야</p>", unsafe_allow_html=True)
-    st.write("")
-    col1, col2, col3 = st.columns([1,2,1])  # 비율 조정 가능
-    with col2:
-        st.button('Clear Chat History', on_click=clear_chat_history)
-
-# 헤더
-st.title("신한카드 소상공인 🔑 비밀상담소")
-st.subheader("#우리동네 #숨은맛집 #소상공인 #마케팅 #전략 .. 🤤")
-st.image(load_image("image_gen3.png"), width='stretch', caption="🌀 머리아픈 마케팅 📊 어떻게 하면 좋을까?")
-st.write("")
-
-# 메시지 상태 초기화
-if "messages" not in st.session_state:
-    st.session_state.messages = [
-        SystemMessage(content=system_prompt),
-        AIMessage(content=greeting)
-    ]
-
-# 초기 메시지 화면 표시
-for message in st.session_state.messages:
-    if isinstance(message, HumanMessage):
-        with st.chat_message("user"):
-            st.write(message.content)
-    elif isinstance(message, AIMessage):
-        with st.chat_message("assistant"):
-            st.write(message.content)
-
 def render_chat_message(role: str, content: str):
     with st.chat_message(role):
-        st.markdown(content.replace("<br>", "  \n"))
+        st.markdown(content)
 
-# LLM 모델 선택
-llm = ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash",  # 최신 Gemini 2.5 Flash 모델
-        google_api_key=GOOGLE_API_KEY,
-        temperature=0.1
-    )
+# --- Page Config ---
+st.set_page_config(page_title="신한카드 AI 컨설턴트 (챗봇)", page_icon="🎈", layout="wide")
 
-# MCP 서버 파라미터(환경에 맞게 명령 수정)
-server_params = StdioServerParameters(
-    command="uv",
-    args=["run","mcp_server.py"],
-    env=None
-)
-
-# 사용자 입력 처리
-async def process_user_input():
-    """사용자 입력을 처리하는 async 함수"""
-    async with stdio_client(server_params) as (read, write):
-        # 스트림으로 ClientSession을 만들고
-        async with ClientSession(read, write) as session:
-            # 세션을 initialize 한다
-            await session.initialize()
-
-            # MCP 툴 로드
-            tools = await load_mcp_tools(session)
-
-            # 에이전트 생성
-            agent = create_react_agent(llm, tools)
-
-            # 에이전트에 전체 대화 히스토리 전달
-            agent_response = await agent.ainvoke({"messages": st.session_state.messages})
+def main():
+    # --- UI & 초기화 ---
+    st.title("신한카드 소상공인 🔑 비밀상담소 (챗봇)")
+    
+    with st.sidebar:
+        st.button('Clear Chat History', on_click=clear_chat_history)
             
-            # AI 응답을 대화 히스토리에 추가
-            ai_message = agent_response["messages"][-1]  # 마지막 메시지가 AI 응답
+    # API Key Check
+    try:
+        if "GOOGLE_API_KEY" not in os.environ and "GOOGLE_API_KEY" in st.secrets:
+            os.environ["GOOGLE_API_KEY"] = st.secrets["GOOGLE_API_KEY"]
+        GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
+        if not GOOGLE_API_KEY:
+            st.error("GOOGLE_API_KEY 환경 변수 또는 secrets.toml에 키가 설정되지 않았습니다.")
+            return
 
-            return ai_message.content
+    except Exception:
+        st.error("GOOGLE_API_KEY 설정 중 오류가 발생했습니다.")
+        return
+
+    # Agent Orchestrator 초기화
+    if AgentOrchestrator is None: return
+    if "orchestrator" not in st.session_state:
+        st.session_state.orchestrator = AgentOrchestrator(
+            google_api_key=GOOGLE_API_KEY,
+            llm_config={"temperature": 0.1}
+        )
+    
+    # 메시지 상태 초기화
+    if "messages" not in st.session_state:
+        clear_chat_history()
+    
+    # 데이터 로드 확인
+    if DF_MERGED is not None and DF_MERGED.empty:
+        st.error("데이터 (`DF_MERGED`) 로드에 실패했습니다. 'preprocess_data.py'를 실행했는지 확인하세요.")
+        return
+
+    # 대화 히스토리 화면 표시
+    for message in st.session_state.messages:
+        if not isinstance(message, SystemMessage):
+            render_chat_message(
+                "user" if isinstance(message, HumanMessage) else "assistant", 
+                message.content
+            )
             
+    # ----------------------------------------------------
+    # --- 사용자 입력 처리 (메인 채팅 루프) ---
+    # ----------------------------------------------------
 
-# 사용자 입력 창
-if query := st.chat_input("가맹점 이름을 입력하세요"):
-    # 사용자 메시지 추가
-    st.session_state.messages.append(HumanMessage(content=query))
-    render_chat_message("user", query)
+    if query := st.chat_input("가맹점 ID를 입력하고 엔터를 누르세요"):
+        
+        # 1. 사용자 메시지 추가
+        st.session_state.messages.append(HumanMessage(content=query))
+        render_chat_message("user", query)
 
-    with st.spinner("Thinking..."):
-        try:
-            # 사용자 입력 처리
-            reply = asyncio.run(process_user_input())
-            st.session_state.messages.append(AIMessage(content=reply))
-            render_chat_message("assistant", reply)
-        except* Exception as eg:
-            # 오류 처리
-            for i, exc in enumerate(eg.exceptions, 1):
-                error_msg = f"오류가 발생했습니다 #{i}: {exc!r}"
-                st.session_state.messages.append(AIMessage(content=error_msg))
-                render_chat_message("assistant", error_msg)
+        # 2. Agent 실행 및 스트리밍
+        with st.chat_message("assistant"):
+            placeholder = st.empty()
+            full_response = ""
+            orchestrator = st.session_state.orchestrator
+            
+            try:
+                # 3. 입력 메시지 준비 (SystemMessage 제외)
+                # Agent는 전체 대화 히스토리 대신, 사용자의 '현재' 입력(query)을 ID로 처리하도록 오케스트레이터가 구성됨.
+                # 하지만 Agent 실행 루프는 메시지 리스트를 받으므로, ID 추출을 위해 쿼리를 그대로 전달합니다.
+                
+                # 4. 비동기 실행 및 스트리밍
+                # ⭐️⭐️⭐️ 오류 수정: asyncio.run() 내에서 async for를 사용하여 리스트로 만듭니다. ⭐️⭐️⭐️
+                
+                # 제너레이터를 코루틴으로 감싸서 리스트로 변환하는 함수 정의
+                async def run_generator_to_list():
+                    stream = orchestrator.astream_response(merchant_id=query)
+                    return [chunk async for chunk in stream]
+                
+                # asyncio.run()을 사용하여 코루틴 실행
+                chunk_list = asyncio.run(run_generator_to_list())
+                
+                # 리스트의 내용을 순차적으로 표시 (스트리밍 효과 유지)
+                for chunk in chunk_list:
+                    full_response += chunk
+                    placeholder.markdown(full_response + "▌") # 커서 표시
+                
+                placeholder.markdown(full_response) # 최종 응답 표시
+
+                # 6. AI 응답을 대화 히스토리에 추가
+                st.session_state.messages.append(AIMessage(content=full_response))
+            
+            except RuntimeError as e:
+                error_msg = f"**🚨 Streamlit 실행 오류:** {e!r} (비동기 함수 호출 문제). 다시 시도해 주세요."
+                st.error(error_msg)
+                st.session_state.messages.append(AIMessage(content=f"오류가 발생하여 상담을 계속할 수 없습니다. 다시 시도해 주세요."))
+            except Exception as e:
+                error_msg = f"**🚨 Agent 실행 중 오류 발생:** {e!r}"
+                st.error(error_msg)
+                st.session_state.messages.append(AIMessage(content=f"오류가 발생하여 상담을 계속할 수 없습니다. 다시 시도해 주세요."))
+
+
+if __name__ == "__main__":
+    main()
