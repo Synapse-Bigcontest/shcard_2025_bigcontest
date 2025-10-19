@@ -96,26 +96,26 @@ Streamlit UI (보고서 출력)
 
 ## 🧾 상세 코드 설명
 
-### 1) Frontend (UI) — `streamlit_app.py`
+#### 1) Frontend (UI) — `streamlit_app.py`
 - Streamlit 기반 인터페이스로 사용자가 가게 선택, 질문 입력, 보고서 열람을 수행합니다.
 - 앱 초기화 시 `modules/knowledge_base.py`로 RAG용 벡터 DB를 로드하고 Orchestrator를 초기화합니다.
 - `visualization.py`를 호출해 가맹점 성과, 고객 분포 등 시각화를 제공합니다.
 
-### 2) Backend (Data API) — `api/server.py`, `api/data_loader.py`
+#### 2) Backend (Data API) — `api/server.py`, `api/data_loader.py`
 - `server.py`: `/profile` 엔드포인트 구현. `merchant_id`로 `final_df.csv`에서 최신 프로필과 상권 평균을 반환합니다.
 - `data_loader.py`: 데이터 로드·클리닝·타입 정리 및 캐시 로직(필요 시)을 포함합니다.
 
-### 3) AI Orchestrator — `orchestrator.py`
+#### 3) AI Orchestrator — `orchestrator.py`
 - LangChain 기반 Orchestrator가 LLM과 Tool(데이터 API, RAG 등)을 연결해 파이프라인을 실행합니다.
 - 주요 함수:
   - `get_store_profile_only()` — 가게 프로필 조회 도구 호출
   - `execute_plan(user_query, merchant_id)` — 전체 실행 흐름(프로필 → 필터링 → RAG → 리포트)
 
-### 4) Knowledge Base & RAG — `knowledge_base.py`
+#### 4) Knowledge Base & RAG — `knowledge_base.py`
 - FAISS 인덱스(축제용, 마케팅용)를 로드하고 각 인덱스에 맞는 retriever를 제공합니다.
 - `search_contextual_marketing_strategy(profile, query)` 같은 도구 함수를 통해 RAG 검색 결과를 반환합니다.
 
-### 5) Advanced Filtering Engine — `filtering.py`
+#### 5) Advanced Filtering Engine — `filtering.py`
 - 하이브리드 추천 파이프라인 (요약):
   1. `rewrite_query_with_llm(profile, query)` — 의미 검색용 쿼리 생성 (LLM)
   2. `search_faiss_candidates(query_embedding, top_k)` — 후보군 추출
@@ -123,10 +123,10 @@ Streamlit UI (보고서 출력)
   4. `evaluate_candidates_in_batch(candidates, criteria)` — 후보 일괄 평가 (LLM)
   5. `calculate_hybrid_scores(vec_scores, llm_scores, weights)` — 하이브리드 점수 계산 및 정렬
 
-### 6) Final Report Generator — `generation.py`
+#### 6) Final Report Generator — `generation.py`
 - `format_final_response(context)`가 LLM을 호출해 최종 Markdown 리포트를 생성합니다. 리포트 구성: 인사말, 추천 축제 Top3, 채점 근거, 마케팅 전략, 실행 제안(체크리스트) 등.
 
-### 7) Tools & Visualization
+#### 7) Tools & Visualization
 - `modules/tool_definitions.py`에 Orchestrator가 호출할 수 있는 도구들을 정의합니다 (예: `get_merchant_profile()`, `get_festival_info()` 등).
 - `visualization.py`는 Matplotlib 기반 차트를 만들고 Streamlit에 렌더링합니다(차트는 재사용 가능한 함수로 구성).
 
