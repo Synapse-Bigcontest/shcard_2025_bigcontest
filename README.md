@@ -39,9 +39,9 @@ AI_FESTIVAL_CONSULTANT/ ├── orchestrator.py # AI 에이전트 실행 및 �
 ---
 
 ## 🔄 전체 데이터·처리 흐름 (상세화)
-
+```
 Streamlit UI (사장님 질문 입력) ↓ Orchestrator.execute_plan() ├─ 1. [Tool] get_merchant_profile() │ └─ (FastAPI API: api/server.py 호출) → 가게 프로필 확보 │ ├─ 2. [Filter] filtering.run_festival_recommendation() │ ├─ a. (LLM 1) 쿼리 재작성 (프로필 + 질문) │ ├─ b. (FAISS) 후보군 검색 (Top 15) │ ├─ c. (LLM 2) 동적 채점 기준 생성 │ ├─ d. (LLM 3) 후보군 일괄 평가 (Batch Re-ranking) │ └─ e. (Hybrid) 벡터 점수 + LLM 점수 합산 → 최종 Top 3 선정 │ ├─ 3. [Tool] knowledge_base.search_contextual_marketing_strategy() │ └─ (RAG) '마케팅 DB' 검색 → 맞춤형 전략 확보 │ └─ 4. [Generate] generation.py.format_final_response() └─ (LLM 4) 모든 정보 취합 → 최종 컨설팅 보고서 생성 ↓ Streamlit UI (Markdown 보고서 출력)
-
+```
 
 ---
 
