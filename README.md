@@ -28,7 +28,10 @@ AI가 다음을 자동 수행합니다:
 AI_FESTIVAL_CONSULTANT/
 ├── orchestrator.py           # AI 에이전트 실행 및 도구 호출 관리 (메인 엔진)
 ├── streamlit_app.py          # Streamlit 웹 인터페이스 (UI)
-├── server.py                 # FastAPI 기반 데이터 조회 서버
+│
+├── api/
+│   ├── server.py             # FastAPI 기반 데이터 조회 서버
+│   └── data_loader.py        # 데이터 로드 및 전처리
 │
 ├── modules/
 │   ├── data_loader.py        # 데이터 로드 및 전처리
@@ -36,7 +39,7 @@ AI_FESTIVAL_CONSULTANT/
 │   ├── tool_definitions.py   # LangChain Tool 정의 (가맹점, 축제 정보)
 │   ├── filtering.py          # 축제 추천 파이프라인 (LLM + FAISS)
 │   ├── generation.py         # 최종 컨설팅 보고서 생성
-│   ├── visualization.py      # Streamlit 시각화 (가맹점 분석 그래프)
+│   └── visualization.py      # Streamlit 시각화 (가맹점 분석 그래프)
 │
 └── data/
     ├── final_df.csv          # 가맹점 데이터
