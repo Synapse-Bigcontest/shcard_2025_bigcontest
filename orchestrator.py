@@ -1,58 +1,41 @@
 # orchestrator.py
 
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langgraph.prebuilt import create_react_agent
-from langchain_core.messages import SystemMessage, HumanMessage
-from typing import Dict, Any, List, AsyncGenerator
-
-# ⭐️ tools_module에서 analyze_merchant_data 툴만 임포트
-from tools_module import analyze_merchant_data 
+from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
+from typing import Dict, Any, List, AsyncGenerator, Union
 
 class AgentOrchestrator:
+    """
+    이 클래스는 툴 호출(analyze_merchant_data)이 완료된 후, 
+    ToolMessage를 포함한 전체 대화 기록을 받아 Gemini LLM에게 전달하여
+    최종 컨설팅 답변을 스트리밍으로 생성하는 역할을 수행합니다.
+    """
+    
     def __init__(self, google_api_key: str, llm_config: Dict[str, Any]):
-        
+        # TODO: 규칙 1에 따라 최종 제출 시 'gemini-2.5-flash'로 변경해야 함
         self.llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash", 
+            model="gemini-2.5-pro", 
             google_api_key=google_api_key,
-            **llm_config 
+            temperature=llm_config.get("temperature", 0.1) # 낮은 온도로 일관된 컨설팅 답변 유도
         )
         
-        # Agent 초기화: analyze_merchant_data 툴만 연결
-        self.agent_executor = create_react_agent(self.llm, [analyze_merchant_data])
+    async def astream(self, input_data: dict) -> AsyncGenerator[str, None]:
+        """
+        비동기적으로 LLM을 호출하고 응답을 스트리밍합니다.
         
-        self.base_system_prompt = (
-            "당신은 가맹점 ID 기반 분석 전문 마케팅 컨설턴트입니다. "
-            "사용자로부터 받은 입력은 무조건 가맹점 ID(예: '002816BA73')이며, "
-            "이 ID를 사용하여 'analyze_merchant_data' Tool을 단 한 번 호출해야 합니다. "
-            "최종 응답에는 분석 결과를 표 형태로 명확히 제공하고, 결과를 바탕으로 마케팅 전략을 제시하세요."
-        )
-
-    async def astream_response(self, merchant_id: str) -> AsyncGenerator[str, None]:
-        """Agent를 비동기로 실행하고 응답을 스트리밍합니다. 입력은 오직 가맹점 ID입니다."""
+        Args:
+            input_data: {"messages": [SystemMessage, HumanMessage, AIMessage(ToolCall), ToolMessage, ...]} 형태의 딕셔너리
         
-        # 1. 메시지 구성: 시스템 프롬프트 + ID를 포함한 HumanMessage
-        full_messages = [
-            SystemMessage(content=self.base_system_prompt),
-            HumanMessage(content=f"분석을 요청한 가맹점 ID: {merchant_id}") # ID를 명시적으로 전달
-        ]
-
-        # 2. Agent 실행
-        async for event in self.agent_executor.astream_events({"messages": full_messages}, version="v1"):
-            kind = event["event"]
+        Yields:
+            응답 텍스트 청크(chunk)
+        """
+        messages: List[Union[SystemMessage, HumanMessage, ToolMessage]] = input_data.get("messages", [])
+        
+        try:
+            async for chunk in self.llm.astream(messages):
+                if chunk.content:
+                    yield chunk.content
             
-            if kind == "on_tool_start":
-                tool_name = event["name"]
-                tool_input = event["data"].get("input", {})
-                
-                if tool_name == "analyze_merchant_data":
-                    yield f"\n\n**<Tool Call: 📊 상세 분석>**\n가맹점 ID **'{tool_input.get('merchant_id', '...')}**'의 프로필 분석을 시작합니다...\n"
-                
-            elif kind == "on_tool_end":
-                # 툴 결과는 LLM이 처리하도록 숨김
-                pass 
-
-            elif kind == "on_chat_model_stream":
-                # 최종 LLM 응답을 스트리밍
-                content = event["data"]["chunk"].content
-                if content:
-                    yield content
+        except Exception as e:
+            print(f"LLM Astream 내부 오류: {e}")
+            yield "LLM 응답 생성 중 예상치 못한 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."
