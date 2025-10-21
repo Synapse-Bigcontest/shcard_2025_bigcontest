@@ -73,8 +73,6 @@ AI_FESTIVAL_CONSULTANT/
 
 ## 🔄 아키텍처 및 데이터 흐름
 
-![Architecture Diagram](https://github.com/yourname/AI_FESTIVAL_CONSULTANT/assets/architecture_diagram.png)
-
 > 새로운 구조는 “에이전트 중심 도구 호출” 패턴을 따릅니다.
 
 1️⃣ **프로필 로드** (UI → API)  
