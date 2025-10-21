@@ -28,7 +28,7 @@ AI 에이전트(Orchestrator)는 이 질문을 이해하고, 가게의 상세 �
 
 ## 📂 프로젝트 구조
 
-```bash
+```
 AI_FESTIVAL_CONSULTANT/
 ├── orchestrator.py           # AI 에이전트 (Tool-Calling Agent)
 ├── streamlit_app.py          # Streamlit 웹 인터페이스 (UI)
@@ -57,35 +57,31 @@ AI_FESTIVAL_CONSULTANT/
 
 ## 🔄 아키텍처 및 데이터 흐름
 
-이 시스템은 **"에이전트 중심의 도구 호출(Tool-Calling)"** 아키텍처를 기반으로 작동합니다.  
-사용자의 자연어 질문은 **Orchestrator(AI 에이전트)** 에 의해 해석되며,  
-에이전트는 **[가게 프로필] 컨텍스트**를 바탕으로 가장 적절한 도구를 스스로 선택하고 실행하여 답변을 생성합니다.
+이 시스템은 **"에이전트 중심의 도구 호출 (Tool-Calling)"** 아키텍처를 기반으로 작동합니다.  
+사용자의 자연어 질문은 **Orchestrator**라는 AI 에이전트에 의해 해석되며,  
+에이전트는 **[가게 프로필]** 컨텍스트를 바탕으로 가장 적절한 도구를 **스스로 선택하고 실행**하여 답변을 생성합니다.
+
+### 🧩 시스템 구성도 (Mermaid Diagram)
 
 ```mermaid
 graph TD
     A[Streamlit UI] -- 1. 가게 선택 --> B[FastAPI Server (api/server.py)];
     B -- 2. 가맹점 프로필 (Dict) --> A;
     
-    A -- 3. 채팅 입력
-(Query + Profile + History) --> C[Orchestrator (orchestrator.py)
-AgentExecutor];
+    A -- 3. 채팅 입력\n(Query + Profile + History) --> C[Orchestrator (orchestrator.py)\nAgentExecutor];
     
     C -- 4. LLM이 의도 분석 후 도구 선택 --> D{Tool Routing};
     
-    D -- "축제 추천해줘" --> E[Tool: recommend_festivals
-(modules/filtering.py)];
+    D -- "축제 추천해줘" --> E[Tool: recommend_festivals\n(modules/filtering.py)];
     E -- (FAISS 검색 + LLM 동적 평가) --> F[축제 Top3 List];
     
-    D -- "마케팅 전략 알려줘" --> G[Tool: search_contextual_marketing_strategy
-(modules/knowledge_base.py)];
+    D -- "마케팅 전략 알려줘" --> G[Tool: search_contextual_marketing_strategy\n(modules/knowledge_base.py)];
     G -- (RAG 검색 + LLM 전략 생성) --> H[맞춤 전략 Text];
     
-    D -- "우리 가게 분석해줘" --> I[Tool: analyze_merchant_profile
-(modules/tool_definitions.py)];
+    D -- "우리 가게 분석해줘" --> I[Tool: analyze_merchant_profile\n(modules/tool_definitions.py)];
     I -- (LLM SWOT 분석) --> J[가게 분석 Text];
     
-    D -- "A 축제 어때?" --> K[Tool: analyze_festival_profile
-(modules/tool_definitions.py)];
+    D -- "A 축제 어때?" --> K[Tool: analyze_festival_profile\n(modules/tool_definitions.py)];
     K -- (LLM 축제 요약) --> L[축제 분석 Text];
     
     F --> C;
@@ -108,24 +104,34 @@ AgentExecutor];
 
 ### 📍 데이터 흐름 상세 설명
 
-**[1-2] 프로필 로드 (UI → API → UI)**  
-- 사용자가 `streamlit_app.py`에서 가게를 선택합니다.  
-- Streamlit이 `api/server.py`의 `/profile` 엔드포인트를 호출하여 해당 가게의 원본 프로필 데이터를 가져옵니다.  
-- 이 데이터는 세션(`st.session_state.profile_data`)에 저장됩니다.
+#### [1–2] 프로필 로드 (UI → API → UI)
+1. 사용자가 Streamlit에서 **가게 선택**
+2. `/profile` 호출 → **가맹점 프로필 데이터** 세션에 저장
 
-**[3] 에이전트 호출 (UI → Orchestrator)**  
-- 사용자가 채팅을 입력하면, `streamlit_app.py`는 `orchestrator.execute_plan()`을 호출합니다.  
-- 이때 **① 사용자 질문(Query), ② 가게 프로필(Dict), ③ 이전 대화 기록(History)** 이 Orchestrator에게 전달됩니다.
+#### [3] 에이전트 호출 (UI → Orchestrator)
+- 사용자가 채팅 입력 → `execute_plan()` 호출  
+- 전달 데이터: **Query + Profile + 이전 대화 기록(History)**
 
-**[4] 의도 분석 및 도구 라우팅 (Orchestrator → LLM → Tool)**  
-- `orchestrator.py`는 `profile_utils.py`를 사용해 API 응답(Dict)을 ‘채팅용 프로필(JSON)’로 변환합니다.  
-- LLM 기반 에이전트는 (질문 + 프로필 + 대화 기록 + 시스템 프롬프트)을 바탕으로 사용자의 의도를 분석합니다.  
-- 등록된 여러 `@tool` 중 **가장 적합한 하나의 도구를 선택**하여 실행합니다.
+#### [4] 의도 분석 및 도구 라우팅 (Orchestrator → LLM → Tool)
+- `profile_utils.py`로 API 응답 → **채팅용 JSON 변환**  
+- LLM 기반 에이전트가 **의도 분석 후 적합 도구 선택**
 
-**[5] 도구 실행 및 최종 답변 생성 (Tool → Orchestrator → LLM → UI)**  
-- (도구 실행) 선택된 도구(예: `recommend_festivals`)가 실행되어 결과물(예: 축제 Top3 리스트)을 반환합니다.  
-- (최종 답변 생성) Orchestrator는 이 **도구 실행 결과를 다시 LLM에 주입**하여, 사용자에게 보여줄 자연어 답변(Markdown 컨설팅 리포트)을 생성합니다.  
-- (답변 출력) 최종 답변은 `streamlit_app.py`로 전달되어 채팅창에 표시됩니다.
+#### [5] 도구 실행 및 최종 답변 생성 (Tool → Orchestrator → LLM → UI)
+1. 선택 도구 실행 → 결과 반환 (예: 축제 Top3)  
+2. 도구 결과를 LLM에 주입 → 최종 자연어 답변 생성  
+3. Streamlit UI로 출력 → **사용자 확인**
+
+---
+
+## ⚙️ 주요 특징 요약
+
+| 기능 | 설명 |
+|------|------|
+| 에이전트 기반 도구 호출 | LLM이 스스로 적합한 도구를 선택 실행 |
+| FAISS 검색 | 지역 축제 및 데이터 기반 유사 항목 검색 |
+| RAG 통합 | 지식 기반 문서에서 컨텍스트 검색 후 전략 생성 |
+| SWOT/요약 분석 | LLM을 통한 가게 및 축제 분석 기능 |
+| Streamlit + FastAPI 연동 | UI와 API 간의 프로필 데이터 교환 구조 |
 
 ---
 
@@ -194,7 +200,3 @@ streamlit run streamlit_app.py
 - FAISS + LLM 재평가 기반 **하이브리드 축제 추천 엔진**  
 
 ---
-
-## 🏁 License
-
-MIT License © 2025 AI Festival Consultant Team
