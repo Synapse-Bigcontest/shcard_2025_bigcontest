@@ -1,7 +1,6 @@
 # 🎈 AI 축제 컨설턴트 (Agentic RAG)
 
 ## Agentic RAG 기반 소상공인 맞춤형 지역 축제 컨설팅 시스템
-## 저녁쯤에 수정된 축제 데이터 받아서 아직 축제 추천 방법 수정 X
 
 신한카드 빅데이터와 전국 축제 정보를 통합 분석하여, AI 에이전트가 가게별로 참여할 만한 지역 축제와 최적의 마케팅 전략 보고서를 자동 생성합니다.
 
@@ -55,36 +54,77 @@ AI_FESTIVAL_CONSULTANT/
 
 ---
 
-## ⚙️ 주요 기능 요약
-
-| 구분 | 파일 | 주요 기능 |
-|------|------|------------|
-| 데이터 로드 | `api/data_loader.py` | CSV 로드 및 전처리 |
-| API 서버 | `api/server.py` | `/profile` 엔드포인트 제공 |
-| AI 에이전트 | `orchestrator.py` | LLM 기반 도구 선택 및 실행 |
-| RAG | `knowledge_base.py` | FAISS 벡터 스토어 + HuggingFace 임베딩 |
-| 축제 추천 | `filtering.py` | FAISS + LLM 하이브리드 추천 |
-| 기타 도구 | `tool_definitions.py` | SWOT 분석, 축제 요약 등 |
-| 프로필 표준화 | `profile_utils.py` | 에이전트용 JSON 변환 |
-| 시각화 | `visualization.py` | Streamlit 그래프 생성 |
-| LLM 관리 | `llm_provider.py` | Gemini LLM 인스턴스 재사용 |
-
----
-
 ## 🔄 아키텍처 및 데이터 흐름
 
-> 새로운 구조는 “에이전트 중심 도구 호출” 패턴을 따릅니다.
+이 시스템은 **"에이전트 중심의 도구 호출(Tool-Calling)"** 아키텍처를 기반으로 작동합니다.  
+사용자의 자연어 질문은 **Orchestrator(AI 에이전트)** 에 의해 해석되며,  
+에이전트는 **[가게 프로필] 컨텍스트**를 바탕으로 가장 적절한 도구를 스스로 선택하고 실행하여 답변을 생성합니다.
 
-1️⃣ **프로필 로드** (UI → API)  
-Streamlit 앱이 FastAPI를 호출해 가게 프로필을 로드합니다.
+```mermaid
+graph TD
+    A[Streamlit UI] -- 1. 가게 선택 --> B[FastAPI Server (api/server.py)];
+    B -- 2. 가맹점 프로필 (Dict) --> A;
+    
+    A -- 3. 채팅 입력
+(Query + Profile + History) --> C[Orchestrator (orchestrator.py)
+AgentExecutor];
+    
+    C -- 4. LLM이 의도 분석 후 도구 선택 --> D{Tool Routing};
+    
+    D -- "축제 추천해줘" --> E[Tool: recommend_festivals
+(modules/filtering.py)];
+    E -- (FAISS 검색 + LLM 동적 평가) --> F[축제 Top3 List];
+    
+    D -- "마케팅 전략 알려줘" --> G[Tool: search_contextual_marketing_strategy
+(modules/knowledge_base.py)];
+    G -- (RAG 검색 + LLM 전략 생성) --> H[맞춤 전략 Text];
+    
+    D -- "우리 가게 분석해줘" --> I[Tool: analyze_merchant_profile
+(modules/tool_definitions.py)];
+    I -- (LLM SWOT 분석) --> J[가게 분석 Text];
+    
+    D -- "A 축제 어때?" --> K[Tool: analyze_festival_profile
+(modules/tool_definitions.py)];
+    K -- (LLM 축제 요약) --> L[축제 분석 Text];
+    
+    F --> C;
+    H --> C;
+    J --> C;
+    L --> C;
+    
+    C -- 5. [도구 결과]로 최종 답변 생성 (LLM) --> A;
+    A -- 6. AI 컨설팅 답변 출력 --> M[사용자];
 
-2️⃣ **에이전트 호출** (UI → Orchestrator)  
-사용자 입력 + 프로필 + 대화 이력을 에이전트로 전달합니다.
+    style A fill:#4CAF50,color:#fff
+    style B fill:#FF9800,color:#fff
+    style C fill:#E91E63,color:#fff
+    style D fill:#9C27B0,color:#fff
+    style E fill:#03A9F4,color:#fff
+    style G fill:#03A9F4,color:#fff
+    style I fill:#03A9F4,color:#fff
+    style K fill:#03A9F4,color:#fff
+```
 
-3️⃣ **도구 라우팅** (Orchestrator → LLM)  
-LLM이 적절한 도구(`@tool`)를 선택합니다.
+### 📍 데이터 흐름 상세 설명
 
-4️⃣ **도구 실행 → 답변 생성 → UI 출력**  
+**[1-2] 프로필 로드 (UI → API → UI)**  
+- 사용자가 `streamlit_app.py`에서 가게를 선택합니다.  
+- Streamlit이 `api/server.py`의 `/profile` 엔드포인트를 호출하여 해당 가게의 원본 프로필 데이터를 가져옵니다.  
+- 이 데이터는 세션(`st.session_state.profile_data`)에 저장됩니다.
+
+**[3] 에이전트 호출 (UI → Orchestrator)**  
+- 사용자가 채팅을 입력하면, `streamlit_app.py`는 `orchestrator.execute_plan()`을 호출합니다.  
+- 이때 **① 사용자 질문(Query), ② 가게 프로필(Dict), ③ 이전 대화 기록(History)** 이 Orchestrator에게 전달됩니다.
+
+**[4] 의도 분석 및 도구 라우팅 (Orchestrator → LLM → Tool)**  
+- `orchestrator.py`는 `profile_utils.py`를 사용해 API 응답(Dict)을 ‘채팅용 프로필(JSON)’로 변환합니다.  
+- LLM 기반 에이전트는 (질문 + 프로필 + 대화 기록 + 시스템 프롬프트)을 바탕으로 사용자의 의도를 분석합니다.  
+- 등록된 여러 `@tool` 중 **가장 적합한 하나의 도구를 선택**하여 실행합니다.
+
+**[5] 도구 실행 및 최종 답변 생성 (Tool → Orchestrator → LLM → UI)**  
+- (도구 실행) 선택된 도구(예: `recommend_festivals`)가 실행되어 결과물(예: 축제 Top3 리스트)을 반환합니다.  
+- (최종 답변 생성) Orchestrator는 이 **도구 실행 결과를 다시 LLM에 주입**하여, 사용자에게 보여줄 자연어 답변(Markdown 컨설팅 리포트)을 생성합니다.  
+- (답변 출력) 최종 답변은 `streamlit_app.py`로 전달되어 채팅창에 표시됩니다.
 
 ---
 
@@ -157,4 +197,3 @@ streamlit run streamlit_app.py
 ## 🏁 License
 
 MIT License © 2025 AI Festival Consultant Team
-
