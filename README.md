@@ -201,7 +201,7 @@ uv pip install -r requirements.txt
 ### 3️⃣ FastAPI 서버 실행
 
 ``` bash
-python api/server.py
+python -m api.server
 # → http://127.0.0.1:8000 에서 대기
 ```
 
