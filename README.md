@@ -65,32 +65,32 @@ AI_FESTIVAL_CONSULTANT/
 
 ```mermaid
 graph TD
-    A[Streamlit UI] -- 1. 가게 선택 --> B[FastAPI Server (api/server.py)];
-    B -- 2. 가맹점 프로필 (Dict) --> A;
+    A["Streamlit UI"] --> B["FastAPI Server api/server.py"]
+    B --> A["Streamlit UI"]
     
-    A -- 3. 채팅 입력\n(Query + Profile + History) --> C[Orchestrator (orchestrator.py)\nAgentExecutor];
+    A --> C["Orchestrator orchestrator.py AgentExecutor (채팅 입력 포함)"]
     
-    C -- 4. LLM이 의도 분석 후 도구 선택 --> D{Tool Routing};
+    C --> D{"Tool Routing (LLM 의도 분석 후 도구 선택)"}
     
-    D -- "축제 추천해줘" --> E[Tool: recommend_festivals\n(modules/filtering.py)];
-    E -- (FAISS 검색 + LLM 동적 평가) --> F[축제 Top3 List];
+    D --> E["Tool: recommend_festivals modules/filtering.py"]
+    E --> F["축제 Top3 List (FAISS 검색 + LLM 동적 평가)"]
     
-    D -- "마케팅 전략 알려줘" --> G[Tool: search_contextual_marketing_strategy\n(modules/knowledge_base.py)];
-    G -- (RAG 검색 + LLM 전략 생성) --> H[맞춤 전략 Text];
+    D --> G["Tool: search_contextual_marketing_strategy modules/knowledge_base.py"]
+    G --> H["맞춤 전략 Text (RAG 검색 + LLM 전략 생성)"]
     
-    D -- "우리 가게 분석해줘" --> I[Tool: analyze_merchant_profile\n(modules/tool_definitions.py)];
-    I -- (LLM SWOT 분석) --> J[가게 분석 Text];
+    D --> I["Tool: analyze_merchant_profile modules/tool_definitions.py"]
+    I --> J["가게 분석 Text (LLM SWOT 분석)"]
     
-    D -- "A 축제 어때?" --> K[Tool: analyze_festival_profile\n(modules/tool_definitions.py)];
-    K -- (LLM 축제 요약) --> L[축제 분석 Text];
+    D --> K["Tool: analyze_festival_profile modules/tool_definitions.py"]
+    K --> L["축제 분석 Text (LLM 축제 요약)"]
     
-    F --> C;
-    H --> C;
-    J --> C;
-    L --> C;
+    F --> C
+    H --> C
+    J --> C
+    L --> C
     
-    C -- 5. [도구 결과]로 최종 답변 생성 (LLM) --> A;
-    A -- 6. AI 컨설팅 답변 출력 --> M[사용자];
+    C --> A
+    A --> M["사용자 (최종 AI 컨설팅 답변 출력)"]
 
     style A fill:#4CAF50,color:#fff
     style B fill:#FF9800,color:#fff
