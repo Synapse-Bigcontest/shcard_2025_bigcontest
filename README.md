@@ -178,39 +178,26 @@ graph TD
 
 ## 🚀 실행 방법
 
-### 1️⃣ 사전 준비
+### 1️⃣ FastAPI 서버 실행
 
 ``` bash
-# 데이터 확인
-data/final_df.csv, data/festival_df.csv 존재해야 함
-vectorstore/faiss_festival, vectorstore/faiss_marketing 확인
-
-# Google API 키 등록
-set GOOGLE_API_KEY="발급받은_API_키"
-```
-
-### 2️⃣ 환경 설정
-
-``` bash
-pip install uv
+cd C:\projects\AI_FESTIVAL_CONSULTANT
 uv venv
 call .venv\Scripts\activate.bat
 uv pip install -r requirements.txt
-```
-
-### 3️⃣ FastAPI 서버 실행
-
-``` bash
 python -m api.server
-# → http://127.0.0.1:8000 에서 대기
 ```
 
-### 4️⃣ Streamlit 앱 실행
+### 2️⃣ Streamlit 앱 실행
 
 ``` bash
-streamlit run streamlit_app.py
+cd C:\projects\AI_FESTIVAL_CONSULTANT
+uv venv
+call .venv\Scripts\activate.bat
+mkdir .streamlit
+echo GOOGLE_API_KEY="(발급받은 gemini API key)" > .streamlit\secrets.toml
+uv run streamlit run streamlit_app.py
 ```
-
 ------------------------------------------------------------------------
 
 ## 📈 예시 시나리오
