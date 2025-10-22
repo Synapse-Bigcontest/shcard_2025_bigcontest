@@ -184,6 +184,7 @@ graph TD
 cd C:\projects\AI_FESTIVAL_CONSULTANT
 uv venv
 call .venv\Scripts\activate.bat
+cd AI_FESTIVAL_CONSULTANT
 uv pip install -r requirements.txt
 python -m api.server
 ```
@@ -194,6 +195,7 @@ python -m api.server
 cd C:\projects\AI_FESTIVAL_CONSULTANT
 uv venv
 call .venv\Scripts\activate.bat
+cd AI_FESTIVAL_CONSULTANT
 mkdir .streamlit
 echo GOOGLE_API_KEY="(발급받은 gemini API key)" > .streamlit\secrets.toml
 uv run streamlit run streamlit_app.py
